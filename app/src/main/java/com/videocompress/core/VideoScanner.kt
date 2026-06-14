@@ -17,6 +17,7 @@ data class VideoInfo(
     val dateAdded: Long,
     val dateModified: Long,
     val path: String,
+    val filePath: String,
     val needsCompression: Boolean
 )
 
@@ -34,8 +35,10 @@ class VideoScanner(private val context: Context) {
             MediaStore.Video.Media.SIZE,
             MediaStore.Video.Media.WIDTH,
             MediaStore.Video.Media.HEIGHT,
+            MediaStore.Video.Media.BITRATE,
             MediaStore.Video.Media.DATE_ADDED,
             MediaStore.Video.Media.DATE_MODIFIED,
+            MediaStore.Video.Media.RELATIVE_PATH,
             MediaStore.Video.Media.DATA
         )
 
@@ -51,8 +54,10 @@ class VideoScanner(private val context: Context) {
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
             val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
             val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
+            val bitrateColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.BITRATE)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
             val dateModifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_MODIFIED)
+            val relativePathColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.RELATIVE_PATH)
             val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
 
             while (cursor.moveToNext()) {
@@ -62,11 +67,14 @@ class VideoScanner(private val context: Context) {
                 val size = cursor.getLong(sizeColumn)
                 val width = cursor.getInt(widthColumn)
                 val height = cursor.getInt(heightColumn)
+                val mediaStoreBitrate = cursor.getLong(bitrateColumn)
                 val dateAdded = cursor.getLong(dateAddedColumn)
                 val dateModified = cursor.getLong(dateModifiedColumn)
-                val path = cursor.getString(dataColumn) ?: ""
+                val relativePath = cursor.getString(relativePathColumn).orEmpty()
+                val dataPath = cursor.getString(dataColumn).orEmpty()
+                val path = if (relativePath.isNotEmpty()) relativePath + name else dataPath
 
-                val bitrate = getBitrate(uri)
+                val bitrate = if (mediaStoreBitrate > 0) mediaStoreBitrate else getBitrate(uri)
                 val needsCompression = shouldCompress(bitrate, width, height, targetBitrateBps, targetResolution)
 
                 videos.add(
@@ -80,6 +88,7 @@ class VideoScanner(private val context: Context) {
                         dateAdded = dateAdded,
                         dateModified = dateModified,
                         path = path,
+                        filePath = dataPath,
                         needsCompression = needsCompression
                     )
                 )
@@ -89,14 +98,18 @@ class VideoScanner(private val context: Context) {
     }
 
     private fun getBitrate(uri: Uri): Long {
+        var retriever: MediaMetadataRetriever? = null
         return try {
-            val retriever = MediaMetadataRetriever()
+            retriever = MediaMetadataRetriever()
             retriever.setDataSource(context, uri)
-            val bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull() ?: 0L
-            retriever.release()
-            bitrate
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull() ?: 0L
         } catch (e: Exception) {
             0L
+        } finally {
+            try {
+                retriever?.release()
+            } catch (_: Exception) {
+            }
         }
     }
 

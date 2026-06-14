@@ -6,10 +6,12 @@
 
 ## 目标环境
 
-- **Android 版本**: Android 16 (API 36)
-- **设备**: OPPO (ColorOS 16)
+- **编译/目标 SDK**: API 35
+- **最低 SDK**: API 33
+- **设备**: Android 13+ 设备
 - **语言/框架**: Kotlin + Jetpack Compose
-- **最低 SDK**: API 36
+
+> 当前实现状态和后续开发约束以 `README.md` 和 `docs/development.md` 为准；本文保留为初始设计背景。
 
 ## 整体架构
 
@@ -93,12 +95,14 @@
        │
        ▼
   转码成功?
-  ├─ 是 → 读取原文件创建/修改时间
-  │       删除原文件
-  │       移动临时文件到原路径
-  │       恢复创建/修改时间
-  │       通知 MediaStore 更新
-  │       标记任务 status=COMPLETED
+  ├─ 是 → 比较临时文件大小与原文件大小
+  │       临时文件更小?
+  │       ├─ 是 → 通过原 MediaStore Uri 写回覆盖
+  │       │       尝试恢复修改时间
+  │       │       标记任务 status=COMPLETED
+  │       └─ 否 → 删除临时文件
+  │               保留原文件
+  │               标记任务 status=SKIPPED
   │
   └─ 否 → 删除临时文件
           标记任务 status=FAILED
@@ -120,16 +124,21 @@
 ```kotlin
 @Entity(tableName = "compression_tasks")
 data class CompressionTask(
-    @PrimaryKey val videoUri: String,
+    @PrimaryKey(autoGenerate = true) val id: Long,
+    val videoUriString: String,
+    val displayName: String,
     val originalPath: String,
     val originalSize: Long,
-    val originalBitrate: Int,
+    val originalBitrate: Long,
     val originalWidth: Int,
     val originalHeight: Int,
-    val originalCreatedTime: Long,
-    val originalModifiedTime: Long,
+    val originalDateAdded: Long,
+    val originalDateModified: Long,
     val status: TaskStatus,       // PENDING, IN_PROGRESS, COMPLETED, FAILED, SKIPPED
     val errorMessage: String? = null,
+    val compressedSize: Long? = null,
+    val completedAt: Long? = null,
+    val skippedReason: String? = null,
     val batchId: String
 )
 ```

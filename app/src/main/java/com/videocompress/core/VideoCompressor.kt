@@ -2,6 +2,7 @@ package com.videocompress.core
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
@@ -15,6 +16,7 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
+import com.videocompress.util.ExportErrorFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -53,6 +55,7 @@ class VideoCompressor(private val context: Context) {
         val transformer = Transformer.Builder(context)
             .setVideoMimeType(MimeTypes.VIDEO_H265)
             .setEncoderFactory(encoderFactory)
+            .setMaxDelayBetweenMuxerSamplesMs(MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS)
             .build()
 
         val editedMediaItem = EditedMediaItem.Builder(MediaItem.fromUri(inputUri))
@@ -81,6 +84,12 @@ class VideoCompressor(private val context: Context) {
                         outputFile = outputFile,
                         outputSize = outputFile.length()
                     )
+                    Log.i(
+                        TAG,
+                        "Export completed uri=$inputUri output=${outputFile.absolutePath} " +
+                            "size=${result.outputSize} targetBitrate=$targetBitrateBps " +
+                            "targetResolution=$targetResolution input=${originalWidth}x$originalHeight"
+                    )
                     if (continuation.isActive) continuation.resume(result)
                 }
 
@@ -90,6 +99,14 @@ class VideoCompressor(private val context: Context) {
                     exportException: ExportException
                 ) {
                     handler.removeCallbacks(progressRunnable)
+                    Log.e(
+                        TAG,
+                        "Export failed uri=$inputUri output=${outputFile.absolutePath} " +
+                            "targetBitrate=$targetBitrateBps targetResolution=$targetResolution " +
+                            "input=${originalWidth}x$originalHeight " +
+                            "error=${ExportErrorFormatter.format(exportException)}",
+                        exportException
+                    )
                     outputFile.delete()
                     if (continuation.isActive) continuation.resumeWithException(exportException)
                 }
@@ -129,5 +146,10 @@ class VideoCompressor(private val context: Context) {
         return listOf(
             Presentation.createForWidthAndHeight(w, h, Presentation.LAYOUT_SCALE_TO_FIT)
         )
+    }
+
+    private companion object {
+        const val TAG = "VideoCompressor"
+        const val MAX_DELAY_BETWEEN_MUXER_SAMPLES_MS = 120_000L
     }
 }

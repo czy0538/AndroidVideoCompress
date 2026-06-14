@@ -23,8 +23,37 @@ interface CompressionTaskDao {
     @Query("SELECT * FROM compression_tasks WHERE status IN ('PENDING', 'IN_PROGRESS') ORDER BY id ASC")
     suspend fun getUnfinishedTasks(): List<CompressionTask>
 
-    @Query("UPDATE compression_tasks SET status = :status, errorMessage = :error, compressedSize = :compressedSize WHERE id = :taskId")
-    suspend fun updateTaskStatus(taskId: Long, status: TaskStatus, error: String? = null, compressedSize: Long? = null)
+    @Query("SELECT * FROM compression_tasks WHERE status IN ('COMPLETED', 'FAILED', 'SKIPPED') ORDER BY COALESCE(completedAt, id) DESC LIMIT :limit")
+    fun getRecentFinishedTasks(limit: Int = 20): Flow<List<CompressionTask>>
+
+    @Query("SELECT COUNT(*) FROM compression_tasks WHERE status IN ('COMPLETED', 'FAILED', 'SKIPPED')")
+    fun getFinishedTaskCount(): Flow<Int>
+
+    @Query("SELECT * FROM compression_tasks WHERE status = 'FAILED' ORDER BY COALESCE(completedAt, id) DESC")
+    fun getFailedTasks(): Flow<List<CompressionTask>>
+
+    @Query("SELECT * FROM compression_tasks WHERE status = 'COMPLETED' ORDER BY id ASC")
+    suspend fun getCompletedTasks(): List<CompressionTask>
+
+    @Query(
+        """
+        UPDATE compression_tasks
+        SET status = :status,
+            errorMessage = :error,
+            compressedSize = :compressedSize,
+            completedAt = :completedAt,
+            skippedReason = :skippedReason
+        WHERE id = :taskId
+        """
+    )
+    suspend fun updateTaskStatus(
+        taskId: Long,
+        status: TaskStatus,
+        error: String? = null,
+        compressedSize: Long? = null,
+        completedAt: Long? = null,
+        skippedReason: String? = null
+    )
 
     @Query("UPDATE compression_tasks SET status = 'PENDING' WHERE status = 'IN_PROGRESS'")
     suspend fun resetInProgressTasks()

@@ -2,9 +2,16 @@ package com.videocompress.data.db
 
 import android.net.Uri
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "compression_tasks")
+@Entity(
+    tableName = "compression_tasks",
+    indices = [
+        Index(value = ["status", "id"]),
+        Index(value = ["batchId"])
+    ]
+)
 data class CompressionTask(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val videoUriString: String,
@@ -16,10 +23,13 @@ data class CompressionTask(
     val originalDateAdded: Long,
     val originalDateModified: Long,
     val originalPath: String,
+    val originalFilePath: String = "",
     val status: TaskStatus = TaskStatus.PENDING,
     val errorMessage: String? = null,
     val compressedSize: Long? = null,
-    val batchId: String
+    val batchId: String,
+    val completedAt: Long? = null,
+    val skippedReason: String? = null
 ) {
     val videoUri: Uri get() = Uri.parse(videoUriString)
 }
