@@ -1,7 +1,9 @@
 *.iml
 .gradle
+.kotlin
 /local.properties
 /.idea
+/.claude
 .DS_Store
 /build
 /captures
@@ -9,3 +11,12 @@
 .cxx
 local.properties
 /app/build
+
+# Signing and local secrets
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+*.env
+google-services.json
